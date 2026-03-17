@@ -1,0 +1,39 @@
+{
+  "log": { "disabled": false, "level": "info", "timestamp": true },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "sing-tun0",
+      "inet4_address": "172.19.0.1/30",
+      "auto_route": true,
+      "strict_route": true,
+      "sniff": true
+    },
+    { "type": "socks", "tag": "socks-in", "listen": "127.0.0.1", "listen_port": 1080 },
+    { "type": "http", "tag": "http-in", "listen": "127.0.0.1", "listen_port": 2080 }
+  ],
+  "outbounds": [
+    {
+      "type": "shadowsocks",
+      "tag": "vpn",
+      "server": ${HOST_JSON},
+      "server_port": ${PUBLIC_PORT},
+      "method": ${SS_METHOD_JSON},
+      "password": ${SS_PASSWORD_JSON},
+      "detour": "shadowtls"
+    },
+    {
+      "type": "shadowtls",
+      "tag": "shadowtls",
+      "server": ${HOST_JSON},
+      "server_port": ${PUBLIC_PORT},
+      "version": 3,
+      "password": ${SHADOWTLS_PASSWORD_JSON},
+      "tls": { "enabled": true, "server_name": ${SNI_JSON} }
+    },
+    { "type": "direct", "tag": "direct" }
+  ],
+  "route": { "final": "vpn" }
+}
+

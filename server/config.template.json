@@ -1,0 +1,28 @@
+{
+  "log": { "disabled": false, "level": "info", "timestamp": true },
+  "inbounds": [
+    {
+      "type": "shadowtls",
+      "tag": "in-shadowtls",
+      "listen": "::",
+      "listen_port": ${PUBLIC_PORT},
+      "version": 3,
+      "password": ${SHADOWTLS_PASSWORD_JSON},
+      "handshake": { "server": ${SNI_JSON}, "server_port": 443 },
+      "detour": "in-ss2022"
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "in-ss2022",
+      "listen": "127.0.0.1",
+      "listen_port": ${INNER_PORT},
+      "method": ${SS_METHOD_JSON},
+      "users": ${SS_USERS_JSON}
+    }
+  ],
+  "outbounds": [
+    { "type": "direct", "tag": "direct" },
+    { "type": "block", "tag": "block" }
+  ]
+}
+
