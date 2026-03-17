@@ -37,6 +37,8 @@ cd /opt/vpn-tool
 sudo bash scripts/server_install.sh
 ```
 
+Если во время установки видите ошибки `apt` про Docker репозиторий (NO_PUBKEY / duplicated list) — это **не про VPN**, а про сломанные apt-источники. Скрипт постарается продолжить, но если установка пакетов не идёт — поправьте репозитории в `/etc/apt/sources.list.d/` и повторите.
+
 Проверка:
 
 ```bash

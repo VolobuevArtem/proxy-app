@@ -53,24 +53,70 @@ case "${ARCH}" in
   *) echo "Неизвестная архитектура: ${ARCH}" >&2; exit 1 ;;
 esac
 
-apt-get update -y
-apt-get install -y curl unzip
-
-# Используем GitHub releases: скачиваем последний linux-ARCH
-LATEST_URL="$(curl -fsSL https://api.github.com/repos/SagerNet/sing-box/releases/latest | \
-  python3 -c "import sys, json; d=json.load(sys.stdin); \
-print([a['browser_download_url'] for a in d.get('assets',[]) if ('linux-${SB_ARCH}' in a['name'] and a['name'].endswith('.zip'))][0])")"
-
-curl -fL "${LATEST_URL}" -o "${TMP_DIR}/sing-box.zip"
-unzip -o "${TMP_DIR}/sing-box.zip" -d "${TMP_DIR}" >/dev/null
-
-SB_BIN="$(find "${TMP_DIR}" -type f -name sing-box | head -n 1)"
-if [[ -z "${SB_BIN}" ]]; then
-  echo "Не нашёл sing-box бинарник в архиве" >&2
+echo "==> Обновляю apt (если есть проблемы с репозиториями — продолжу)..."
+apt-get update -y || true
+echo "==> Ставлю зависимости (curl, unzip, ca-certificates)..."
+apt-get install -y curl unzip ca-certificates || {
+  echo "Не удалось установить зависимости через apt. Проверьте apt-репозитории и повторите." >&2
+  echo "Подсказка: у вас может быть сломан/дублируется репозиторий Docker (см. /etc/apt/sources.list.d/)." >&2
   exit 1
+}
+
+echo "==> Пытаюсь установить sing-box через официальный install.sh..."
+if curl -fsSL https://sing-box.app/install.sh -o "${TMP_DIR}/install_singbox.sh"; then
+  if bash "${TMP_DIR}/install_singbox.sh" >/dev/null 2>&1; then
+    :
+  fi
 fi
 
-install -m 0755 "${SB_BIN}" /usr/local/bin/sing-box
+if ! command -v sing-box >/dev/null 2>&1; then
+  echo "==> Fallback: скачиваю sing-box из GitHub Releases..."
+  # Ищем tar.gz или zip (на случай изменений формата релиза)
+  LATEST_URL="$(curl -fsSL https://api.github.com/repos/SagerNet/sing-box/releases/latest | \
+    python3 - <<PY
+import sys, json
+d=json.load(sys.stdin)
+assets=d.get("assets", [])
+urls=[a.get("browser_download_url","") for a in assets]
+targets=[u for u in urls if ("linux-${SB_ARCH}" in u and (u.endswith(".tar.gz") or u.endswith(".zip")))]
+if not targets:
+    raise SystemExit("NO_ASSET")
+print(targets[0])
+PY
+  )" || {
+    echo "Не смог найти релизный архив sing-box для linux-${SB_ARCH} (возможна блокировка GitHub API/сети)." >&2
+    echo "Попробуйте повторить позже или установите sing-box вручную, затем перезапустите скрипт." >&2
+    exit 1
+  }
+
+  if [[ "${LATEST_URL}" == "NO_ASSET" ]]; then
+    echo "Не смог найти подходящий asset sing-box для linux-${SB_ARCH}." >&2
+    exit 1
+  fi
+
+  echo "==> Download: ${LATEST_URL}"
+  if [[ "${LATEST_URL}" == *.zip ]]; then
+    curl -fL "${LATEST_URL}" -o "${TMP_DIR}/sing-box.zip"
+    unzip -o "${TMP_DIR}/sing-box.zip" -d "${TMP_DIR}" >/dev/null
+  else
+    curl -fL "${LATEST_URL}" -o "${TMP_DIR}/sing-box.tar.gz"
+    tar -xzf "${TMP_DIR}/sing-box.tar.gz" -C "${TMP_DIR}"
+  fi
+
+  SB_BIN="$(find "${TMP_DIR}" -type f -name sing-box | head -n 1)"
+  if [[ -z "${SB_BIN}" ]]; then
+    echo "Не нашёл sing-box бинарник в архиве" >&2
+    exit 1
+  fi
+
+  install -m 0755 "${SB_BIN}" /usr/local/bin/sing-box
+fi
+
+SB_BIN="$(command -v sing-box || true)"
+if [[ -z "${SB_BIN}" ]]; then
+  echo "sing-box не установлен (не найден в PATH)" >&2
+  exit 1
+fi
 
 echo "==> Рендерю /etc/sing-box/config.json"
 mkdir -p /etc/sing-box
